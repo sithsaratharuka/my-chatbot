@@ -1,13 +1,18 @@
 import os
+import time
 
 from flask import Flask, jsonify, request, send_from_directory
 from google import genai
-from google.genai import types
+from google.genai import errors, types
+
+# Temporary errors worth retrying (overloaded, rate limited, server hiccup)
+RETRY_CODES = {429, 500, 503}
+MAX_ATTEMPTS = 3
 
 # ---------------------------------------------------------------
 # SETTINGS: change these to customise your bot
 # ---------------------------------------------------------------
-BOT_NAME = "SITHASARA THARUKA"
+BOT_NAME = "Helper"
 # Model names change often. Check https://aistudio.google.com for the current one.
 MODEL = "gemini-3.8-flash"
 SYSTEM_PROMPT = """You are a friendly, helpful assistant named Helper.
@@ -50,18 +55,26 @@ def chat():
     if not contents or contents[-1].role != "user":
         return jsonify({"error": "Send a message first."}), 400
 
-    try:
-        response = client.models.generate_content(
-            model=MODEL,
-            contents=contents,
-            config=types.GenerateContentConfig(
-                system_instruction=SYSTEM_PROMPT,
-                max_output_tokens=1000,
-            ),
-        )
-        return jsonify({"reply": response.text or "(No reply. Try rephrasing.)"})
-    except Exception as e:  # keep it simple: show the error to the user
-        return jsonify({"error": f"API error: {e}"}), 500
+    for attempt in range(1, MAX_ATTEMPTS + 1):
+        try:
+            response = client.models.generate_content(
+                model=MODEL,
+                contents=contents,
+                config=types.GenerateContentConfig(
+                    system_instruction=SYSTEM_PROMPT,
+                    max_output_tokens=1000,
+                ),
+            )
+            return jsonify({"reply": response.text or "(No reply. Try rephrasing.)"})
+        except errors.APIError as e:
+            if e.code in RETRY_CODES and attempt < MAX_ATTEMPTS:
+                time.sleep(2 * attempt)  # wait 2s, then 4s, then try again
+                continue
+            if e.code in RETRY_CODES:
+                return jsonify({"error": "The AI is busy right now. Please try again in a minute."}), 503
+            return jsonify({"error": f"API error: {e}"}), 500
+        except Exception as e:
+            return jsonify({"error": f"Unexpected error: {e}"}), 500
 
 
 if __name__ == "__main__":
