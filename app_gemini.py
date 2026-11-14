@@ -12,7 +12,7 @@ MAX_ATTEMPTS = 3
 # ---------------------------------------------------------------
 # SETTINGS: change these to customise your bot
 # ---------------------------------------------------------------
-BOT_NAME = "Helper"
+BOT_NAME = "THARUKA"
 # Model names change often. Check https://aistudio.google.com for the current one.
 MODEL = "gemini-3.8-flash"
 SYSTEM_PROMPT = """You are a friendly, helpful assistant named Helper.
